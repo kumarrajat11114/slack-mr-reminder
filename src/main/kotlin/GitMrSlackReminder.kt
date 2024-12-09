@@ -10,42 +10,20 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
 class GitMrSlackReminder {
-    /*private val slackToken = System.getenv("SLACK_BOT_TOKEN")
-    private val slackChannelId = System.getenv("SLACK_CHANNEL_ID")
-    private val targetBranch = System.getenv("TARGET_BRANCH")
-    private val gitRepository = System.getenv("GIT_REPOSITORY")
-    private val gitUrl = System.getenv("GIT_URL")
-    private val gitAccessToken = System.getenv("GIT_ACCESS_TOKEN")*/
+    private val SLACK_BOT_TOKEN = System.getenv("SLACK_BOT_TOKEN")
+    private val SLACK_APP_TOKEN = System.getenv("SLACK_APP_TOKEN")
+    private val SLACK_CHANNEL_ID = System.getenv("SLACK_CHANNEL_ID")
+    private val GIT_URL = System.getenv("GIT_URL")
+    private val GIT_ACCESS_TOKEN = System.getenv("GIT_ACCESS_TOKEN")
+    private val GIT_REPOSITORY = System.getenv("GIT_REPOSITORY")
+    private val TARGET_BRANCH = System.getenv("TARGET_BRANCH")
 
-    /**
-        SLACK_BOT_TOKEN="xoxb-4581332862067-8144908232995-9PVmMQmMCPrbvxN7Jo9xmYsv"
-        SLACK_APP_TOKEN="xapp-1-A08462VSKS9-8130473892599-ff036f9c9702ec70df697619dc2a0d2b4c9ac52412ed97668415d24a0d2f9a82"
-        SLACK_CHANNEL_ID="C04GWR04W94"
-        GIT_URL="https://github.com/"
-        GIT_ACCESS_TOKEN="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"
-        GIT_PROJECT_PATH="kumarrajat11114/UnlimintTestApp"
-        TARGET_BRANCH="main"
-     */
-
-    private val slackBotToken = "xoxb-4581332862067-8144908232995-9PVmMQmMCPrbvxN7Jo9xmYsv"
-    private val slackAppToken = "xapp-1-A08462VSKS9-8130473892599-ff036f9c9702ec70df697619dc2a0d2b4c9ac52412ed97668415d24a0d2f9a82"
-    private val slackChannelId = "C04GWR04W94"
-    private val gitUrl = "https://github.com"
-    private val gitAccessToken = "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"
-    private val gitRepository = "kumarrajat11114/UnlimintTestApp"
-    private val targetBranch = "main"
-    private val userMappings: Map<String, String> = mapOf(
-        "kumarrajat11114" to "U084BFL4ZBN"
-    ) // Map of GitHub usernames to Slack user IDs
-
-    private val app = App()
-    private val scheduler = Executors.newScheduledThreadPool(1)
     private val gitClient = GitClient(
-        gitUrl = gitUrl,
-        gitAccessToken = gitAccessToken,
-        gitRepository = gitRepository,
-        targetBranch = targetBranch,
-        userMappings = userMappings
+        gitUrl = GIT_URL,
+        gitAccessToken = GIT_ACCESS_TOKEN,
+        gitRepository = GIT_REPOSITORY,
+        targetBranch = TARGET_BRANCH,
+        slackToken = SLACK_BOT_TOKEN
     )
 
     fun sendDailyReminder() {
@@ -54,9 +32,9 @@ class GitMrSlackReminder {
 
         val slack = Slack.getInstance()
         try {
-            slack.methods(slackBotToken).chatPostMessage { req ->
+            slack.methods(SLACK_BOT_TOKEN).chatPostMessage { req ->
                 req
-                    .channel(slackChannelId)
+                    .channel(SLACK_CHANNEL_ID)
                     .text(message)
                     .linkNames(true)
             }
@@ -66,9 +44,6 @@ class GitMrSlackReminder {
     }
     // Start the bot
     fun start() {
-        // Create and start socket mode app
-        val socketModeApp = SocketModeApp(slackAppToken, app)
-
         // Start the scheduler in a coroutine
         CoroutineScope(Dispatchers.Default).launch {
             while (true) {
@@ -77,12 +52,10 @@ class GitMrSlackReminder {
                     now.dayOfWeek.value in 1..5) {
                     sendDailyReminder()
                 }
-                delay(TimeUnit.MINUTES.toMillis(1))
+                delay(TimeUnit.DAYS.toMillis(1))
+                sendDailyReminder()
             }
         }
-
-        // Start socket mode app
-        socketModeApp.start()
     }
 
     private fun getPendingMRs(): Map<String, MutableList<GitClient.GitMR>> {
@@ -92,9 +65,9 @@ class GitMrSlackReminder {
             val mergeRequests = gitClient.getMRs()
 
             if (mergeRequests.isNotEmpty()) {
-                pendingMRs[gitRepository] = mutableListOf()
+                pendingMRs[GIT_REPOSITORY] = mutableListOf()
                 mergeRequests.forEach {
-                    pendingMRs[gitRepository]?.add(it)
+                    pendingMRs[GIT_REPOSITORY]?.add(it)
                 }
             }
         } catch (e: Exception) {
@@ -106,13 +79,13 @@ class GitMrSlackReminder {
 
     private fun formatMessage(pendingPrs: Map<String, List<GitClient.GitMR>>): String {
         if (pendingPrs.isEmpty()) {
-            return "No pending merge requests for repository *$gitRepository* on branch *$targetBranch*! 🎉"
+            return "No pending merge requests for repository *$GIT_REPOSITORY* on branch *$TARGET_BRANCH*! 🎉"
         }
 
         return buildString {
             appendLine("🔍 *Daily Pull Request Reminder*")
-            appendLine("Repository: *${gitRepository}*")
-            appendLine("Target Branch: *$targetBranch*\n")
+            appendLine("Repository: *${GIT_REPOSITORY}*")
+            appendLine("Target Branch: *$TARGET_BRANCH*\n")
 
             pendingPrs.forEach { (_, prs) ->
                 prs.forEach { pr ->
@@ -154,19 +127,21 @@ class GitMrSlackReminder {
     companion object {
         @JvmStatic
         fun main(args: Array<String>) {
-            /*val requiredVars = listOf(
+            val requiredVars = listOf(
                 "SLACK_BOT_TOKEN",
+                "SLACK_APP_TOKEN",
                 "SLACK_CHANNEL_ID",
                 "GIT_URL",
                 "GIT_ACCESS_TOKEN",
-                "TARGET_BRANCH"
+                "GIT_REPOSITORY",
+                "TARGET_BRANCH",
             )
 
             val missingVars = requiredVars.filter { System.getenv(it).isNullOrEmpty() }
             if (missingVars.isNotEmpty()) {
                 println("Error: Missing required environment variables: ${missingVars.joinToString(", ")}")
                 return
-            }*/
+            }
 
             val reminder = GitMrSlackReminder()
             reminder.sendDailyReminder()

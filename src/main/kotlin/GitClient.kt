@@ -15,8 +15,10 @@ class GitClient(
     private val gitAccessToken: String,
     private val gitRepository: String,
     private val targetBranch: String,
-    private val userMappings: Map<String, String>
+    private val slackToken: String
 ) {
+
+    private val userLookup = SlackUserLookup(slackToken = slackToken)
     private val currentClientName: String = when {
         gitUrl.contains(GITHUB) -> GITHUB
         gitUrl.contains(GITLAB) -> GITLAB
@@ -58,14 +60,28 @@ class GitClient(
                         GitMR(
                             title = it.title,
                             url = it.htmlUrl.toString(),
-                            author = getSlackUserTag(it.user.login),
-                            assignee = getSlackUserTag(it.assignee.login),
+                            author = if (it.user.email.isNotEmpty()) {
+                                userLookup.findUserByEmail(it.user.email) ?: it.user.name
+                            } else {
+                                userLookup.findUserByName(it.user.name) ?: it.user.name
+                            },
+                            assignee = if (it.assignee.email.isNotEmpty()){
+                                userLookup.findUserByEmail(it.assignee.email) ?: it.assignee.name
+                            } else {
+                                userLookup.findUserByName(it.assignee.name) ?: it.assignee.name
+                            },
                             createdAt = createdDate.format(
                                 DateTimeFormatter.ISO_DATE
                             ),
                             daysOpen = daysOpen,
                             duration = formatDuration(daysOpen),
-                            reviewers = formatUserTags(it.listReviews().map { it.user.login }.distinct()),
+                            reviewers = it.listReviews().joinToString { reviewer ->
+                                if (reviewer.user.email.isNotEmpty()) {
+                                    userLookup.findUserByEmail(reviewer.user.email) ?: reviewer.user.name
+                                } else {
+                                    userLookup.findUserByEmail(reviewer.user.name) ?: reviewer.user.name
+                                }
+                            },
                             pipelineStatus = repo.getCommit(it.head.sha).checkRuns.firstOrNull()?.let { checkRun ->
                                 checkRun.conclusion ?: checkRun.status
                             }?.name ?: "",
@@ -87,14 +103,28 @@ class GitClient(
                     GitMR(
                         title = it.title,
                         url = it.webUrl,
-                        author = getSlackUserTag(it.assignee.username),
-                        assignee = getSlackUserTag(it.assignee.username),
+                        author = if (it.assignee.email.isNotEmpty()) {
+                            userLookup.findUserByEmail(it.assignee.email) ?: it.assignee.name
+                        } else {
+                            userLookup.findUserByName(it.assignee.name) ?: it.assignee.name
+                        },
+                        assignee = if (it.assignee.email.isNotEmpty()){
+                            userLookup.findUserByEmail(it.assignee.email) ?: it.assignee.name
+                        } else {
+                            userLookup.findUserByName(it.assignee.name) ?: it.assignee.name
+                        },
                         createdAt = createdDate.format(
                             DateTimeFormatter.ISO_DATE
                         ),
                         daysOpen = daysOpen,
                         duration = formatDuration(daysOpen),
-                        reviewers = formatUserTags(it.reviewers.map { reviewer -> reviewer.username }.distinct()),
+                        reviewers = it.reviewers.joinToString { reviewer ->
+                            if (reviewer.email.isNotEmpty()) {
+                                userLookup.findUserByEmail(reviewer.email) ?: reviewer.name
+                            } else {
+                                userLookup.findUserByEmail(reviewer.email) ?: reviewer.name
+                            }
+                        },
                         pipelineStatus = it.pipeline.status.name,
                         hasConflicts = it.hasConflicts
                     )
@@ -107,13 +137,5 @@ class GitClient(
         }
     }
 
-    private fun getSlackUserTag(githubUsername: String): String {
-        // Look up the Slack user ID from the mapping
-        return userMappings[githubUsername]?.let { "<@$it>" } ?: githubUsername
-    }
 
-    // Format a list of GitHub usernames into Slack tags
-    private fun formatUserTags(usernames: List<String>): String {
-        return usernames.joinToString(", ") { getSlackUserTag(it) }
-    }
 }

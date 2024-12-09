@@ -22,3 +22,13 @@ fun formatDuration(days: Long): String = when {
         }
     }
 }
+
+private fun getSlackUserTag(githubUsername: String, userMappings: Map<String, String>): String {
+    // Look up the Slack user ID from the mapping
+    return userMappings[githubUsername]?.let { "<@$it>" } ?: githubUsername
+}
+
+// Format a list of GitHub usernames into Slack tags
+private fun formatUserTags(usernames: List<String>, userMappings: Map<String, String>): String {
+    return usernames.joinToString(", ") { getSlackUserTag(it, userMappings, ) }
+}
