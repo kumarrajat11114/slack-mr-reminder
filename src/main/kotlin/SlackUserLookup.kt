@@ -10,7 +10,7 @@ class SlackUserLookup(
      * Looks up a Slack user ID by email address
      * Useful when GitHub emails match Slack emails
      */
-    fun findUserByEmail(email: String): String? {
+    fun findUserByEmail(email: String?): String? {
         val slack = Slack.getInstance()
         return try {
             slack.methods(slackToken).usersLookupByEmail { req ->
@@ -26,7 +26,7 @@ class SlackUserLookup(
      * Searches for a user by their display name or real name
      * Useful when GitHub usernames match Slack display names
      */
-    fun findUserByName(username: String): String? {
+    fun findUserByName(username: String?): String? {
         // Check cache first
         userCache[username]?.let { return it }
         val slack = Slack.getInstance()
@@ -41,7 +41,7 @@ class SlackUserLookup(
             }
 
             // Cache and return the result
-            return user?.id?.also { userCache[username] = it }
+            return user?.id?.also { userCache[username ?: ""] = it }
         } catch (e: Exception) {
             println("Error looking up user by name: ${e.message}")
             return null

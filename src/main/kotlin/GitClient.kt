@@ -93,22 +93,25 @@ class GitClient(
             GITLAB -> {
                 val currentClient = GitLabApi(gitUrl, gitAccessToken)
                 currentClient.mergeRequestApi.getMergeRequests(gitRepository, Constants.MergeRequestState.OPENED).map {
-                    val createdDate = it.createdAt.toInstant()
-                        .atZone(ZoneId.systemDefault())
-                        .toLocalDateTime()
+                    val createdDate = it.createdAt?.let { date ->
+                        date.toInstant()
+                            .atZone(ZoneId.systemDefault())
+                            .toLocalDateTime()
+                    } ?: LocalDateTime.now()
+
                     val daysOpen = ChronoUnit.DAYS.between(
                         createdDate,
                         LocalDateTime.now()
                     )
                     GitMR(
-                        title = it.title,
-                        url = it.webUrl,
-                        author = if (it.assignee.email.isNotEmpty()) {
-                            userLookup.findUserByEmail(it.assignee.email) ?: it.assignee.name
+                        title = it.title ?: "",
+                        url = it.webUrl  ?: "",
+                        author = if (it.author.email.isNullOrEmpty().not()) {
+                            userLookup.findUserByEmail(it.author.email) ?: it.author.name
                         } else {
-                            userLookup.findUserByName(it.assignee.name) ?: it.assignee.name
+                            userLookup.findUserByName(it.author.name) ?: it.author.name
                         },
-                        assignee = if (it.assignee.email.isNotEmpty()){
+                        assignee = if (it.assignee.email.isNullOrEmpty().not()){
                             userLookup.findUserByEmail(it.assignee.email) ?: it.assignee.name
                         } else {
                             userLookup.findUserByName(it.assignee.name) ?: it.assignee.name
@@ -119,14 +122,14 @@ class GitClient(
                         daysOpen = daysOpen,
                         duration = formatDuration(daysOpen),
                         reviewers = it.reviewers.joinToString { reviewer ->
-                            if (reviewer.email.isNotEmpty()) {
+                            if (reviewer.email.isNullOrEmpty().not()) {
                                 userLookup.findUserByEmail(reviewer.email) ?: reviewer.name
                             } else {
                                 userLookup.findUserByEmail(reviewer.email) ?: reviewer.name
                             }
                         },
-                        pipelineStatus = it.pipeline.status.name,
-                        hasConflicts = it.hasConflicts
+                        pipelineStatus = it.pipeline?.status?.name  ?: "",
+                        hasConflicts = it.hasConflicts  ?: false
                     )
                 }
             }
