@@ -32,5 +32,5 @@ kotlin {
 }
 
 application {
-    mainClass.set("GitPrSlackReminder")
+    mainClass.set("GitMrSlackReminder")
 }
